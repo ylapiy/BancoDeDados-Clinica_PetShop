@@ -6,6 +6,8 @@ CHARACTER SET utf8mb4
 COLLATE utf8mb4_general_ci;
 USE clinica_petshop;
 
+
+
 -- -----------------------------------------------------
 -- TABELA: Clientes
 -- -----------------------------------------------------
@@ -16,6 +18,8 @@ CREATE TABLE Clientes (
     endereco VARCHAR(150),
     telefone VARCHAR(25)
 );
+
+
 
 -- -----------------------------------------------------
 -- TABELA: Pets
@@ -34,6 +38,8 @@ CREATE TABLE Pets (
         ON DELETE CASCADE
 );
 
+
+
 -- -----------------------------------------------------
 -- TABELA: Cargos
 -- -----------------------------------------------------
@@ -43,6 +49,8 @@ CREATE TABLE Cargos (
     especialidade VARCHAR(50),
     crmv VARCHAR(10)
 );
+
+
 
 -- -----------------------------------------------------
 -- TABELA: Funcionarios
@@ -58,6 +66,8 @@ CREATE TABLE Funcionarios (
     FOREIGN KEY (id_cargo) REFERENCES Cargos(id_cargo)
 );
 
+
+
 -- -----------------------------------------------------
 -- TABELA: Servicos
 -- -----------------------------------------------------
@@ -67,6 +77,8 @@ CREATE TABLE Servicos (
     preco DECIMAL(10,2),
     descricao TEXT
 );
+
+
 
 -- -----------------------------------------------------
 -- TABELA: Atendimentos
@@ -86,6 +98,8 @@ CREATE TABLE Atendimentos (
     FOREIGN KEY (id_servico) REFERENCES Servicos(id_servico)
 );
 
+  
+
 -- -----------------------------------------------------
 -- TABELA: Historico de Atendimentos
 -- -----------------------------------------------------
@@ -99,6 +113,8 @@ CREATE TABLE Historico_Atendimentos (
     FOREIGN KEY (id_atendimento) REFERENCES Atendimentos(id_atendimento)
         ON DELETE CASCADE
 );
+
+
 
 -- -----------------------------------------------------
 -- TABELA: Pagamentos
@@ -117,6 +133,8 @@ CREATE TABLE Pagamentos (
 		ON DELETE CASCADE
 );
 
+
+
 -- -----------------------------------------------------
 -- TABELA: Historico de Pagamentos
 -- -----------------------------------------------------
@@ -132,6 +150,8 @@ CREATE TABLE Historico_Pagamentos (
         ON DELETE CASCADE
 );
 
+
+
 -- -----------------------------------------------------
 -- TABELA: Estoque
 -- -----------------------------------------------------
@@ -140,6 +160,8 @@ CREATE TABLE Estoque (
     localizacao VARCHAR(100),
     data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+
 
 -- -----------------------------------------------------
 -- TABELA: Produtos
@@ -155,6 +177,12 @@ CREATE TABLE Produtos (
     FOREIGN KEY (id_estoque) REFERENCES Estoque(id_estoque)
 );
 
+ALTER TABLE produtos
+  ADD COLUMN estoque_minimo INT DEFAULT 5,
+  ADD COLUMN estoque_maximo INT DEFAULT 50;
+
+
+
 -- -----------------------------------------------------
 -- TABELA INTERMEDIÁRIA: Produtos em Pagamentos (N:N)
 -- -----------------------------------------------------
@@ -168,10 +196,33 @@ CREATE TABLE Pagamento_Produtos (
     FOREIGN KEY (id_produto) REFERENCES Produtos(id_produto)
 );
 
+
+
 -- -----------------------------------------------------
--- EXTRAS: ÍNDICES E AJUSTES DE PERFORMANCE
+-- ÍNDICES DE BUSCA TEXTUAL
 -- ----------------------------------------------------- 
 CREATE INDEX idx_nome_cliente ON Clientes(nome);
 CREATE INDEX idx_nome_pet ON Pets(nome);
 CREATE INDEX idx_nome_funcionario ON Funcionarios(nome);
 CREATE INDEX idx_tipo_servico ON Servicos(tipo_servico);
+
+
+
+-- -----------------------------------------------------
+-- ÍNDICES DE RELATÓRIOS E DESEMPENHO
+-- -----------------------------------------------------
+
+CREATE INDEX idx_pagamentos_cliente ON Pagamentos(id_cliente);
+CREATE INDEX idx_pagamentos_status ON Pagamentos(status_pagamento);
+CREATE INDEX idx_pagamentos_data ON Pagamentos(data_pagamento);
+
+CREATE INDEX idx_pagamento_produto ON Pagamento_Produtos(id_produto);
+CREATE INDEX idx_pagamento_pagamento ON Pagamento_Produtos(id_pagamento);
+
+CREATE INDEX idx_atendimentos_data ON Atendimentos(data_atendimento);
+CREATE INDEX idx_atendimentos_funcionario ON Atendimentos(id_funcionario);
+CREATE INDEX idx_atendimentos_pet ON Atendimentos(id_pet);
+CREATE INDEX idx_atendimentos_servico ON Atendimentos(id_servico);
+
+CREATE INDEX idx_pets_cliente ON Pets(id_cliente);
+
