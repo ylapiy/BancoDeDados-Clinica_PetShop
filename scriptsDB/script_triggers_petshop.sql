@@ -1,28 +1,6 @@
--- Atualizar estoque após venda de produto
-DELIMITER $$
-
-CREATE TRIGGER trg_update_estoque_after_pagamento
-AFTER INSERT ON pagamento_produtos
-FOR EACH ROW
-BEGIN
-  UPDATE produtos
-  SET quantidade_estoque = quantidade_estoque - NEW.quantidade
-  WHERE id_produto = NEW.id_produto;
-  
-  IF (SELECT quantidade_estoque FROM produtos WHERE id_produto = NEW.id_produto) - NEW.quantidade < 0 THEN
-	  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro: estoque insuficiente.';
-	ELSE
-	  UPDATE produtos
-	  SET quantidade_estoque = quantidade_estoque - NEW.quantidade
-	  WHERE id_produto = NEW.id_produto;
-	END IF;
-
-END $$
-
-DELIMITER ;
-
-
+-- ----------------------------------------------------------------------
 -- Atualizar data no estoque após mudança na quantidade
+-- ----------------------------------------------------------------------
 DELIMITER $$
 
 CREATE TRIGGER trg_update_data_estoque
@@ -41,7 +19,9 @@ DELIMITER ;
 
 
 
+-- ----------------------------------------------------------------------
 -- Histórico de atendimento automático
+-- ----------------------------------------------------------------------
 DELIMITER $$
 
 CREATE TRIGGER trg_atendimento_historico_update
@@ -58,7 +38,9 @@ DELIMITER ;
 
 
 
+-- ----------------------------------------------------------------------
 -- Recalcula o total do pagamento ao inserir um item
+-- ----------------------------------------------------------------------
 DELIMITER $$
 
 CREATE TRIGGER trg_update_total_pagamento_ins
@@ -79,7 +61,9 @@ DELIMITER ;
 
 
 
--- Recalcula ao atualizar a quantidade/produto
+-- ----------------------------------------------------------------------
+-- Recalcula o total do pagamento ao atualizar a quantidade/produto
+-- ----------------------------------------------------------------------
 DELIMITER $$
 
 CREATE TRIGGER trg_update_total_pagamento_upd
@@ -100,7 +84,9 @@ DELIMITER ;
 
 
 
--- Recalcula ao remover um item
+-- ----------------------------------------------------------------------
+-- Recalcula o total do pagamento ao remover um item
+-- ----------------------------------------------------------------------
 DELIMITER $$
 
 CREATE TRIGGER trg_update_total_pagamento_del
@@ -118,3 +104,70 @@ BEGIN
 END $$
 
 DELIMITER ;
+
+
+
+-- ----------------------------------------------------------------------
+-- Recalcula o total do pagamento ao inserir um atendimento
+-- ----------------------------------------------------------------------
+DELIMITER $$
+
+CREATE TRIGGER trg_update_total_pagamento_atendimento_ins
+AFTER INSERT ON pagamento_atendimentos
+FOR EACH ROW
+BEGIN
+  UPDATE pagamentos
+  SET valor_total = (
+    SELECT
+      COALESCE((
+        SELECT SUM(s.preco)
+        FROM pagamento_atendimentos pa
+        JOIN atendimentos a ON a.id_atendimento = pa.id_atendimento
+        JOIN servicos s ON s.id_servico = a.id_servico
+        WHERE pa.id_pagamento = NEW.id_pagamento
+      ), 0) +
+      COALESCE((
+        SELECT SUM(pp.quantidade * pr.preco)
+        FROM pagamento_produtos pp
+        JOIN produtos pr ON pr.id_produto = pp.id_produto
+        WHERE pp.id_pagamento = NEW.id_pagamento
+      ), 0)
+  )
+  WHERE id_pagamento = NEW.id_pagamento;
+END $$
+
+DELIMITER ;
+
+
+
+-- ----------------------------------------------------------------------
+-- Recalcula o total do pagamento ao remover um atendimento
+-- ----------------------------------------------------------------------
+DELIMITER $$
+
+CREATE TRIGGER trg_update_total_pagamento_atendimento_del
+AFTER DELETE ON pagamento_atendimentos
+FOR EACH ROW
+BEGIN
+  UPDATE pagamentos
+  SET valor_total = (
+    SELECT
+      COALESCE((
+        SELECT SUM(s.preco)
+        FROM pagamento_atendimentos pa
+        JOIN atendimentos a ON a.id_atendimento = pa.id_atendimento
+        JOIN servicos s ON s.id_servico = a.id_servico
+        WHERE pa.id_pagamento = OLD.id_pagamento
+      ), 0) +
+      COALESCE((
+        SELECT SUM(pp.quantidade * pr.preco)
+        FROM pagamento_produtos pp
+        JOIN produtos pr ON pr.id_produto = pp.id_produto
+        WHERE pp.id_pagamento = OLD.id_pagamento
+      ), 0)
+  )
+  WHERE id_pagamento = OLD.id_pagamento;
+END $$
+
+DELIMITER ;
+
