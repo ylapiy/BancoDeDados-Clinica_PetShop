@@ -25,6 +25,10 @@ BEGIN
   VALUES (p_id_cliente, NOW(), 0.00, NULL, 'Pendente');
 
   SET v_id_pagamento = LAST_INSERT_ID();
+  
+  -- Adiciona no histórico de pagamentos
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, data_alteracao)
+  VALUES (v_id_pagamento, 'Pendente', 0.00, NOW(), NOW());
 
   SELECT v_id_pagamento AS id_novo_pagamento;
 END $$
@@ -59,6 +63,13 @@ BEGIN
   UPDATE Pagamentos
   SET forma_pagamento = p_forma_pagamento
   WHERE id_pagamento = p_id_pagamento;
+  
+  -- Adiciona no histórico de pagamentos
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes)
+  SELECT id_pagamento, status_pagamento, valor_total, NOW(), CONCAT('Forma de pagamento definida: ', p_forma_pagamento)
+  FROM Pagamentos
+  WHERE id_pagamento = p_id_pagamento;
+
 
   SELECT CONCAT('Forma de pagamento definida como ', p_forma_pagamento, ' para o pagamento ID ', p_id_pagamento) AS resultado;
 END $$
@@ -114,6 +125,11 @@ BEGIN
   -- Faz a associação
   INSERT INTO Pagamento_Atendimentos (id_pagamento, id_atendimento)
   VALUES (p_id_pagamento, p_id_atendimento);
+  
+  -- Adiciona no histórico pagamentos
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes)
+  VALUES (p_id_pagamento, 'Pendente', 0.00, NOW(), CONCAT('Atendimento ID ', p_id_atendimento, ' associado.'));
+
 END $$
 
 DELIMITER ;
@@ -177,6 +193,10 @@ BEGIN
   WHERE id_pagamento = p_id_pagamento
     AND id_atendimento = p_id_atendimento;
 
+  -- Adiciona no histórico de pagamentos
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes)
+  VALUES (p_id_pagamento, 'Pendente', 0.00, NOW(), CONCAT('Atendimento ID ', p_id_atendimento, ' removido do pagamento.'));
+
   -- Resposta
   SELECT CONCAT('Atendimento (', v_nome_servico, ') removido do pagamento ID ', p_id_pagamento) AS resultado;
 END $$
@@ -218,8 +238,7 @@ BEGIN
   END IF;
 
   -- Verifica se o produto existe e pega dados
-  SELECT COUNT(*), nome, quantidade_estoque
-  INTO v_produto_existente, v_nome_produto, v_estoque_atual
+  SELECT COUNT(*) INTO v_produto_existente
   FROM Produtos
   WHERE id_produto = p_id_produto;
 
@@ -227,6 +246,10 @@ BEGIN
     SIGNAL SQLSTATE '45000'
     SET MESSAGE_TEXT = 'Produto não encontrado.';
   END IF;
+
+  SELECT nome, quantidade_estoque INTO v_nome_produto, v_estoque_atual
+  FROM Produtos
+  WHERE id_produto = p_id_produto;
 
   -- Valida estoque
   IF v_estoque_atual < p_quantidade THEN
@@ -246,9 +269,13 @@ BEGIN
       data_atualizacao = NOW()
   WHERE id_produto = p_id_produto;
 
-  -- Registra histórico
+  -- Registra histórico de estoque
   INSERT INTO Historico_Estoque (id_produto, tipo_movimentacao, quantidade, observacao)
-  VALUES (p_id_produto, 'Saída', p_quantidade, CONCAT('Venda - Pagamento ID: ', p_id_pagamento));
+  VALUES (p_id_produto, 'Saída', p_quantidade, CONCAT('Venda - Pagamento #', p_id_pagamento, ' - Produto "', v_nome_produto, '"'));
+
+  -- Adiciona no histórico de pagamentos
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes)
+  VALUES (p_id_pagamento, 'Pendente', 0.00, NOW(), CONCAT('Produto "', v_nome_produto, '" adicionado (', p_quantidade, ' unid.).'));
 
   -- Confirma
   SELECT CONCAT('Produto "', v_nome_produto, '" adicionado ao pagamento ID ', p_id_pagamento) AS resultado;
@@ -315,6 +342,11 @@ BEGIN
   -- Registra no histórico
   INSERT INTO Historico_Estoque (id_produto, tipo_movimentacao, quantidade, observacao)
   VALUES (p_id_produto, 'Entrada', v_qtd, CONCAT('Reversão - Pagamento ID: ', p_id_pagamento));
+  
+  -- Adiciona no histórico de pagamentos
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes)
+  VALUES (p_id_pagamento, 'Pendente', 0.00, NOW(), CONCAT('Produto ID ', p_id_produto, ' removido do pagamento.'));
+
 END $$
 
 DELIMITER ;
@@ -360,6 +392,11 @@ BEGIN
     JOIN Servicos s ON s.id_servico = a.id_servico
     WHERE pa.id_pagamento = p_id_pagamento
   ), 0);
+  
+  IF v_total = 0 THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Não é possível confirmar um pagamento sem itens associados.';
+  END IF;
 
   -- Atualiza o pagamento
   UPDATE Pagamentos
@@ -371,11 +408,12 @@ BEGIN
 
   -- Insere no histórico
   INSERT INTO Historico_Pagamentos (
-    id_pagamento, status_pagamento, valor_pago, data_pagamento, data_alteracao
+    id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes
   )
   VALUES (
-    p_id_pagamento, p_status, v_total, NOW(), NOW()
+    p_id_pagamento, p_status, v_total, NOW(), CONCAT('Confirmado com forma: ', p_forma_pagamento)
   );
+
 END $$
 
 DELIMITER ;
@@ -444,12 +482,13 @@ BEGIN
   SET v_id_atendimento = LAST_INSERT_ID();
 
   -- Registra histórico
-  INSERT INTO Historico_Atendimentos (
-    id_atendimento, diagnostico, receita, observacoes, data_alteracao
-  )
-  VALUES (
-    v_id_atendimento, p_diagnostico, p_receita, p_observacoes, NOW()
-  );
+  INSERT INTO Historico_Pagamentos (id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes)
+  SELECT pa.id_pagamento, 'Pendente', s.preco, NOW(),
+       CONCAT('Atendimento ID ', v_id_atendimento, ' registrado e vinculado automaticamente.')
+  FROM Pagamento_Atendimentos pa
+  JOIN Atendimentos a ON pa.id_atendimento = a.id_atendimento
+  JOIN Servicos s ON a.id_servico = s.id_servico
+  WHERE a.id_atendimento = v_id_atendimento;
 
   -- Retorna ID
   SELECT v_id_atendimento AS novo_atendimento;
@@ -517,9 +556,30 @@ CREATE PROCEDURE atualizar_pagamento(
   IN p_valor_total DECIMAL(10,2)
 )
 BEGIN
+  
+  DECLARE v_exists INT;
+  SELECT COUNT(*) INTO v_exists FROM Pagamentos WHERE id_pagamento = p_id_pagamento;
+  
+  -- verifica se o pagamento existe
+  IF v_exists = 0 THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Pagamento não encontrado.';
+  END IF;
+
+  -- atualiza o pagamento
   UPDATE Pagamentos
   SET forma_pagamento = p_forma_pagamento, status_pagamento = p_status_pagamento, valor_total = p_valor_total
   WHERE id_pagamento = p_id_pagamento;
+  
+  -- adiciona no histórico de pagamentos
+  INSERT INTO Historico_Pagamentos (
+    id_pagamento, status_pagamento, valor_pago, data_pagamento, observacoes
+  )
+  VALUES (
+    p_id_pagamento, p_status_pagamento, p_valor_total, NOW(),
+    CONCAT('Pagamento atualizado: forma "', p_forma_pagamento, '", status "', p_status_pagamento, '".')
+  );
+
 END $$
 
 DELIMITER ;
@@ -538,10 +598,27 @@ CREATE PROCEDURE atualizar_atendimento(
   IN p_observacoes TEXT
 )
 BEGIN
+  DECLARE v_exists INT;
+  SELECT COUNT(*) INTO v_exists FROM Atendimentos WHERE id_atendimento = p_id_atendimento;
+  IF v_exists = 0 THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Atendimento não encontrado.';
+  END IF;
+
   UPDATE Atendimentos
-  SET diagnostico = p_diagnostico, receita = p_receita, observacoes = p_observacoes
+  SET diagnostico = p_diagnostico,
+      receita = p_receita,
+      observacoes = p_observacoes
   WHERE id_atendimento = p_id_atendimento;
+
+  INSERT INTO Historico_Atendimentos (
+    id_atendimento, diagnostico, receita, observacoes, data_alteracao
+  )
+  VALUES (
+    p_id_atendimento, p_diagnostico, p_receita, p_observacoes, NOW()
+  );
 END $$
 
 DELIMITER ;
+
 

@@ -1,3 +1,0 @@
-Era pra ser uma visita comum. Eu tinha combinado de passar na casa de um amigo pra trocar uma ideia e ver um projeto que ele estava montando no DBeaver. Quando cheguei, ele estava ali, concentrado na tela, digitando umas queries... até que, de repente, tudo mudou. Ele começou a passar mal — um infarto, ali, na minha frente. Foi um choque. Corri pra ajudar, chamei socorro, mas aquela imagem ficou presa na minha cabeça.
-
-Desde então, toda vez que vejo o ícone do DBeaver, sinto um aperto no peito. É como se aquele momento voltasse inteiro, junto com o som do teclado, a tensão, o susto. Uma simples ferramenta de banco de dados virou, pra mim, um gatilho emocional. Nunca imaginei que algo tão técnico pudesse carregar tanta lembrança.

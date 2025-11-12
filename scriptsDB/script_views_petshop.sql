@@ -52,26 +52,8 @@ JOIN pets p ON a.id_pet = p.id_pet
 JOIN clientes c ON p.id_cliente = c.id_cliente
 JOIN funcionarios f ON a.id_funcionario = f.id_funcionario
 JOIN servicos s ON a.id_servico = s.id_servico
-WHERE a.data_atendimento >= CURDATE() - INTERVAL 30 DAY;
-
-
--- Histórico consolidado de atendimentos e pagamentos
-CREATE OR REPLACE VIEW v_historico_completo AS
-SELECT
-  c.nome AS cliente,
-  p.nome AS pet,
-  s.tipo_servico,
-  a.data_atendimento,
-  pg.status_pagamento,
-  pg.valor_total,
-  hp.data_alteracao AS ultima_alteracao_pagamento
-FROM atendimentos a
-JOIN pets p ON a.id_pet = p.id_pet
-JOIN clientes c ON p.id_cliente = c.id_cliente
-LEFT JOIN servicos s ON a.id_servico = s.id_servico
-LEFT JOIN pagamento_atendimentos pa ON a.id_atendimento = pa.id_atendimento
-LEFT JOIN pagamentos pg ON pa.id_pagamento = pg.id_pagamento
-LEFT JOIN historico_pagamentos hp ON pg.id_pagamento = hp.id_pagamento;
+WHERE a.data_atendimento >= CURDATE() - INTERVAL 30 DAY
+ORDER BY a.data_atendimento DESC;
 
 
 -- Frequência de visitas por pet
@@ -114,12 +96,28 @@ SELECT
   pg.forma_pagamento,
   pg.status_pagamento,
   pg.valor_total,
-  SUM(pp.quantidade * pr.preco) AS valor_produtos
+  
+  -- Total de produtos no pagamento
+  (
+    SELECT SUM(pp.quantidade * pr.preco)
+    FROM pagamento_produtos pp
+    JOIN produtos pr ON pr.id_produto = pp.id_produto
+    WHERE pp.id_pagamento = pg.id_pagamento
+  ) AS valor_produtos,
+
+  -- Total de atendimentos no pagamento
+  (
+    SELECT SUM(s.preco)
+    FROM pagamento_atendimentos pa
+    JOIN atendimentos a ON a.id_atendimento = pa.id_atendimento
+    JOIN servicos s ON s.id_servico = a.id_servico
+    WHERE pa.id_pagamento = pg.id_pagamento
+  ) AS valor_atendimentos
+
 FROM pagamentos pg
-LEFT JOIN pagamento_produtos pp ON pg.id_pagamento = pp.id_pagamento
-LEFT JOIN produtos pr ON pp.id_produto = pr.id_produto
 JOIN clientes c ON pg.id_cliente = c.id_cliente
-GROUP BY pg.id_pagamento, c.nome, pg.data_pagamento, pg.forma_pagamento, pg.status_pagamento, pg.valor_total;
+ORDER BY pg.id_pagamento;
+
 
 
 -- produtividade de funcionários
@@ -133,7 +131,8 @@ FROM funcionarios f
 LEFT JOIN atendimentos a ON f.id_funcionario = a.id_funcionario
 LEFT JOIN pagamento_atendimentos pa ON pa.id_atendimento = a.id_atendimento
 LEFT JOIN pagamentos pg ON pg.id_pagamento = pa.id_pagamento
-GROUP BY f.id_funcionario, f.nome;
+GROUP BY f.id_funcionario, f.nome
+ORDER BY total_faturado DESC;
 
 
 -- Ranking de funcionários por número de atendimentos
@@ -146,7 +145,8 @@ SELECT
 FROM funcionarios f
 LEFT JOIN cargos c ON f.id_cargo = c.id_cargo
 LEFT JOIN atendimentos a ON f.id_funcionario = a.id_funcionario
-GROUP BY f.id_funcionario, f.nome, c.nome;
+GROUP BY f.id_funcionario, f.nome, c.nome
+ORDER BY total_atendimentos DESC;
 
 
 -- Faturamento mensal por serviço
@@ -160,7 +160,8 @@ FROM pagamentos pg
 JOIN pagamento_atendimentos pa ON pa.id_pagamento = pg.id_pagamento
 JOIN atendimentos a ON a.id_atendimento = pa.id_atendimento
 JOIN servicos s ON a.id_servico = s.id_servico
-GROUP BY s.tipo_servico, DATE_FORMAT(pg.data_pagamento, '%Y-%m');
+GROUP BY s.tipo_servico, DATE_FORMAT(pg.data_pagamento, '%Y-%m')
+ORDER BY mes DESC;
 
 
 -- Faturamento por funcionário
@@ -173,7 +174,8 @@ FROM pagamentos pg
 JOIN pagamento_atendimentos pa ON pa.id_pagamento = pg.id_pagamento
 JOIN atendimentos a ON a.id_atendimento = pa.id_atendimento
 JOIN funcionarios f ON a.id_funcionario = f.id_funcionario
-GROUP BY f.nome;
+GROUP BY f.nome
+ORDER BY total_recebido DESC;
 
 
 -- Atendimentos agrupados por raça do pet
@@ -198,6 +200,48 @@ SELECT
 FROM pagamentos pg
 JOIN clientes c ON pg.id_cliente = c.id_cliente
 WHERE pg.status_pagamento = 'Pendente';
+
+
+-- Histórico de Pagamentos
+CREATE OR REPLACE VIEW v_historico_pagamentos AS
+SELECT
+    hp.id_historico AS id_historico_pagamento,
+    pg.id_pagamento,
+    c.nome AS cliente,
+    pg.status_pagamento,
+    pg.forma_pagamento,
+    pg.valor_total,
+    hp.status_pagamento AS status_anterior,
+    hp.valor_pago,
+    hp.data_pagamento,
+    hp.data_alteracao,
+    hp.observacoes
+FROM historico_pagamentos hp
+JOIN pagamentos pg ON hp.id_pagamento = pg.id_pagamento
+LEFT JOIN clientes c ON pg.id_cliente = c.id_cliente
+ORDER BY hp.data_alteracao DESC;
+
+
+-- Histórico de Atendimentos
+CREATE OR REPLACE VIEW v_historico_atendimentos AS
+SELECT
+    ha.id_historico AS id_historico_atendimento,
+    a.id_atendimento,
+    c.nome AS cliente,
+    p.nome AS pet,
+    s.tipo_servico AS servico,
+    f.nome AS funcionario,
+    ha.diagnostico,
+    ha.receita,
+    ha.observacoes,
+    ha.data_alteracao
+FROM historico_atendimentos ha
+JOIN atendimentos a ON ha.id_atendimento = a.id_atendimento
+JOIN pets p ON a.id_pet = p.id_pet
+JOIN clientes c ON p.id_cliente = c.id_cliente
+JOIN servicos s ON a.id_servico = s.id_servico
+JOIN funcionarios f ON a.id_funcionario = f.id_funcionario
+ORDER BY ha.data_alteracao DESC;
 
 
 
@@ -256,7 +300,8 @@ SELECT
   SUM(quantidade_estoque) AS total_itens,
   SUM(preco * quantidade_estoque) AS valor_total
 FROM produtos
-GROUP BY categoria;
+GROUP BY categoria
+ORDER BY categoria ASC;
 
 
 -- Ranking de produtos mais vendidos
@@ -268,7 +313,25 @@ SELECT
   SUM(pp.quantidade * pr.preco) AS faturamento_total
 FROM pagamento_produtos pp
 JOIN produtos pr ON pp.id_produto = pr.id_produto
-GROUP BY pr.id_produto, pr.nome;
+GROUP BY pr.id_produto, pr.nome
+ORDER BY total_vendido DESC;
+
+
+-- Histórico de Estoque
+CREATE OR REPLACE VIEW v_historico_estoque AS
+SELECT
+    he.id_historico AS id_historico_estoque,
+    p.id_produto,
+    p.nome AS produto,
+    e.localizacao AS local_estoque,
+    he.tipo_movimentacao,
+    he.quantidade,
+    he.observacao,
+    he.data_movimentacao
+FROM historico_estoque he
+JOIN produtos p ON he.id_produto = p.id_produto
+LEFT JOIN estoque e ON p.id_estoque = e.id_estoque
+ORDER BY he.data_movimentacao DESC;
 
 
 
@@ -281,9 +344,14 @@ CREATE OR REPLACE VIEW v_receita_mensal_total AS
 SELECT
   DATE_FORMAT(pg.data_pagamento, '%Y-%m') AS mes,
   SUM(pg.valor_total) AS total_faturado,
-  COUNT(pg.id_pagamento) AS total_pagamentos
+  COUNT(pg.id_pagamento) AS total_pagamentos,
+  SUM(CASE WHEN pg.status_pagamento = 'Pago' THEN 1 ELSE 0 END) AS qtd_pagos,
+  SUM(CASE WHEN pg.status_pagamento = 'Pendente' THEN 1 ELSE 0 END) AS qtd_pendentes,
+  SUM(CASE WHEN pg.status_pagamento = 'Cancelado' THEN 1 ELSE 0 END) AS qtd_cancelados
+
 FROM pagamentos pg
-GROUP BY DATE_FORMAT(pg.data_pagamento, '%Y-%m');
+GROUP BY DATE_FORMAT(pg.data_pagamento, '%Y-%m')
+ORDER BY mes DESC;
 
 
 -- Clientes que mais geram receita
@@ -310,5 +378,6 @@ FROM pagamentos pg
 JOIN pagamento_atendimentos pa ON pa.id_pagamento = pg.id_pagamento
 JOIN atendimentos a ON a.id_atendimento = pa.id_atendimento
 JOIN servicos s ON a.id_servico = s.id_servico
-GROUP BY s.tipo_servico;
+GROUP BY s.tipo_servico
+ORDER BY s.tipo_servico ASC;
 

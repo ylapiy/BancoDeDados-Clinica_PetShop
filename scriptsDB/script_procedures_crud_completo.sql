@@ -11,6 +11,7 @@ CREATE PROCEDURE cadastrar_cliente (
   IN p_telefone VARCHAR(20)
 )
 BEGIN
+  -- verifica se o cpf já foi cadastrado
   IF EXISTS (
     SELECT 1 FROM Clientes WHERE cpf = p_cpf
   ) THEN
@@ -29,7 +30,16 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_cliente(IN p_id_cliente INT)
 BEGIN
+  -- verifica se o cliente existe
+  IF NOT EXISTS (SELECT 1 FROM Clientes WHERE id_cliente = p_id_cliente) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Cliente não encontrado.';
+  END IF;
+
+  -- remove o cliente
   DELETE FROM Clientes WHERE id_cliente = p_id_cliente;
+  
+  SELECT CONCAT('Cliente ID ', p_id_cliente, ' removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -47,6 +57,7 @@ CREATE PROCEDURE listar_clientes()
 BEGIN
   SELECT * FROM Clientes;
 END $$
+
 DELIMITER ;
 
 DELIMITER $$
@@ -59,9 +70,17 @@ CREATE PROCEDURE atualizar_cliente(
   IN p_telefone VARCHAR(20)
 )
 BEGIN
+ -- Verifica se o cliente existe
+  IF NOT EXISTS (SELECT 1 FROM Clientes WHERE id_cliente = p_id_cliente) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Cliente não encontrado.';
+  END IF;
+  
   UPDATE Clientes
   SET nome = p_nome, cpf = p_cpf, endereco = p_endereco, telefone = p_telefone
   WHERE id_cliente = p_id_cliente;
+  
+  SELECT CONCAT('Cliente ID ', p_id_cliente, ' atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -83,6 +102,7 @@ CREATE PROCEDURE cadastrar_pet (
   IN p_id_cliente INT
 )
 BEGIN
+  -- verifica se o pet está relacionado a um cliente existente
   IF NOT EXISTS (
     SELECT 1 FROM Clientes WHERE id_cliente = p_id_cliente
   ) THEN
@@ -105,7 +125,15 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_pet(IN p_id_pet INT)
 BEGIN
+  -- verifica se o pet existe
+  IF NOT EXISTS (SELECT 1 FROM Pets WHERE id_pet = p_id_pet) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Pet não encontrado.';
+  END IF;
+
   DELETE FROM Pets WHERE id_pet = p_id_pet;
+  
+  SELECT CONCAT('Pet ID ', p_id_pet, ' removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -148,9 +176,17 @@ CREATE PROCEDURE atualizar_pet(
   IN p_id_cliente INT
 )
 BEGIN
+  -- verifica se o pet existe
+  IF NOT EXISTS (SELECT 1 FROM Pets WHERE id_pet = p_id_pet) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Pet não encontrado.';
+  END IF;
+
   UPDATE Pets
   SET nome = p_nome, animal = p_animal, idade = p_idade, raca = p_raca, peso = p_peso, porte = p_porte, sexo = p_sexo, id_cliente = p_id_cliente
   WHERE id_pet = p_id_pet;
+  
+  SELECT CONCAT('Pet ID ', p_id_pet, ' atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -175,7 +211,15 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_cargo(IN p_id_cargo INT)
 BEGIN
+  -- verifica se o cargo existe
+  IF NOT EXISTS (SELECT 1 FROM Cargos WHERE id_cargo = p_id_cargo) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Cargo não encontrado.';
+  END IF;
+  
   DELETE FROM Cargos WHERE id_cargo = p_id_cargo;
+  
+  SELECT CONCAT('Cargo ID ', p_id_cargo, ' removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -205,9 +249,17 @@ CREATE PROCEDURE atualizar_cargo(
   IN p_crmv VARCHAR(20)
 )
 BEGIN
+  -- verifica se o cargo existe
+  IF NOT EXISTS (SELECT 1 FROM Cargos WHERE id_cargo = p_id_cargo) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Cargo não encontrado.';
+  END IF;
+
   UPDATE Cargos
   SET nome = p_nome, especialidade = p_especialidade, crmv = p_crmv
   WHERE id_cargo = p_id_cargo;
+  
+  SELECT CONCAT('Cargo ID ', p_id_cargo, ' atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -235,7 +287,15 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_funcionario(IN p_id_funcionario INT)
 BEGIN
+  -- verifica se o funcionário existe
+  IF NOT EXISTS (SELECT 1 FROM Funcionarios WHERE id_funcionario = p_id_funcionario) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Funcionário não encontrado.';
+  END IF;
+  
   DELETE FROM Funcionarios WHERE id_funcionario = p_id_funcionario;
+  
+  SELECT CONCAT('Funcionário ID ', p_id_funcionario, ' removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -268,9 +328,23 @@ CREATE PROCEDURE atualizar_funcionario(
   IN p_contrato VARCHAR(10)
 )
 BEGIN
+  -- verifica se o funcionário existe
+  IF NOT EXISTS (SELECT 1 FROM Funcionarios WHERE id_funcionario = p_id_funcionario) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Funcionário não encontrado.';
+  END IF;
+  
+  -- verifica se já existe um funcionário com o cpf inserido
+  IF EXISTS (SELECT 1 FROM Funcionarios WHERE cpf = p_cpf AND id_funcionario <> p_id_funcionario) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Já existe um funcionário com esse CPF.';
+  END IF;
+
   UPDATE Funcionarios
   SET nome = p_nome, cpf = p_cpf, email = p_email, telefone = p_telefone, id_cargo = p_id_cargo, contrato = p_contrato
   WHERE id_funcionario = p_id_funcionario;
+  
+  SELECT CONCAT('Funcionário ID ', p_id_funcionario, ' atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -306,7 +380,18 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_produto(IN p_id_produto INT)
 BEGIN
+  DECLARE v_nome VARCHAR(100);
+
+  -- verifica se o produto existe e captura nome
+  SELECT nome INTO v_nome FROM Produtos WHERE id_produto = p_id_produto;
+  IF v_nome IS NULL THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Produto não encontrado.';
+  END IF;
+
   DELETE FROM Produtos WHERE id_produto = p_id_produto;
+  
+  SELECT CONCAT('Produto "', v_nome, '" removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -327,7 +412,6 @@ END $$
 DELIMITER ;
 
 DELIMITER $$
--- Atualizar Produto
 CREATE PROCEDURE atualizar_produto(
   IN p_id_produto INT,
   IN p_id_estoque INT,
@@ -340,13 +424,35 @@ CREATE PROCEDURE atualizar_produto(
   IN p_max INT
 )
 BEGIN
+  DECLARE v_nome VARCHAR(100);
+  
+  -- verifica se o produto existe e captura nome
+  SELECT nome INTO v_nome FROM Produtos WHERE id_produto = p_id_produto;
+  IF v_nome IS NULL THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Produto não encontrado.';
+  END IF;
+
   UPDATE Produtos
-  SET id_estoque = p_id_estoque, categoria = p_categoria, nome = p_nome, preco = p_preco, quantidade_estoque = p_quantidade,
-      descricao = p_descricao, estoque_minimo = p_min, estoque_maximo = p_max
+  SET id_estoque = p_id_estoque,
+      categoria = p_categoria,
+      nome = p_nome,
+      preco = p_preco,
+      quantidade_estoque = p_quantidade,
+      descricao = p_descricao,
+      estoque_minimo = p_min,
+      estoque_maximo = p_max,
+      data_atualizacao = NOW()
   WHERE id_produto = p_id_produto;
+
+  INSERT INTO Historico_Estoque (id_produto, tipo_movimentacao, quantidade, observacao)
+  VALUES (p_id_produto, 'Atualização', p_quantidade, 'Atualização manual de produto');
+
+  SELECT CONCAT('Produto "', v_nome, '" atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
+
 
 
 -- =====================================================
@@ -368,7 +474,15 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_servico(IN p_id_servico INT)
 BEGIN
+  -- verifica se o serviço existe
+  IF NOT EXISTS (SELECT 1 FROM Servicos WHERE id_servico = p_id_servico) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Serviço não encontrado.';
+  END IF;
+
   DELETE FROM Servicos WHERE id_servico = p_id_servico;
+  
+  SELECT CONCAT('Serviço ID ', p_id_servico, ' removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -389,7 +503,7 @@ END $$
 
 DELIMITER ;
 
-DELIMITER $
+DELIMITER $$
 -- Atualizar Serviço
 CREATE PROCEDURE atualizar_servico(
   IN p_id_servico INT,
@@ -398,9 +512,17 @@ CREATE PROCEDURE atualizar_servico(
   IN p_descricao TEXT
 )
 BEGIN
+  -- verifica se o serviço existe
+  IF NOT EXISTS (SELECT 1 FROM Servicos WHERE id_servico = p_id_servico) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Serviço não encontrado.';
+  END IF;
+  
   UPDATE Servicos
   SET tipo_servico = p_tipo_servico, preco = p_preco, descricao = p_descricao
   WHERE id_servico = p_id_servico;
+  
+  SELECT CONCAT('Serviço ID ', p_id_servico, ' atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -421,7 +543,15 @@ DELIMITER ;
 DELIMITER $$
 CREATE PROCEDURE remover_estoque(IN p_id_estoque INT)
 BEGIN
+  -- verifica se o estoque existe
+  IF NOT EXISTS (SELECT 1 FROM Estoque WHERE id_estoque = p_id_estoque) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Estoque não encontrado.';
+  END IF;
+
   DELETE FROM Estoque WHERE id_estoque = p_id_estoque;
+  
+  SELECT CONCAT('Estoque ID ', p_id_estoque, ' removido com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;
@@ -449,9 +579,21 @@ CREATE PROCEDURE atualizar_estoque(
   IN p_localizacao VARCHAR(100)
 )
 BEGIN
+  -- verifica se o estoque existe
+  IF NOT EXISTS (SELECT 1 FROM Estoque WHERE id_estoque = p_id_estoque) THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Estoque não encontrado.';
+  END IF;
+  
   UPDATE Estoque
   SET localizacao = p_localizacao, data_atualizacao = NOW()
   WHERE id_estoque = p_id_estoque;
+  
+  INSERT INTO Historico_Estoque (id_produto, tipo_movimentacao, quantidade, observacao)
+  VALUES (NULL, 'Atualização', 0, CONCAT('Localização do estoque ID ', p_id_estoque, ' alterada para "', p_localizacao, '".'));
+
+  
+  SELECT CONCAT('Estoque ID ', p_id_estoque, ' atualizado com sucesso.') AS resultado;
 END $$
 
 DELIMITER ;

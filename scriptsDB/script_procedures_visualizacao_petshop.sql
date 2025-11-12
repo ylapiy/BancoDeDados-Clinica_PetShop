@@ -28,9 +28,9 @@ BEGIN
     pg.status_pagamento,
     pg.valor_total
   FROM Clientes c
-  JOIN Pets p ON c.id_cliente = p.id_cliente
-  JOIN Atendimentos a ON p.id_pet = a.id_pet
-  JOIN Servicos s ON a.id_servico = s.id_servico
+  LEFT JOIN Pets p ON c.id_cliente = p.id_cliente
+  LEFT JOIN Atendimentos a ON p.id_pet = a.id_pet
+  LEFT JOIN Servicos s ON a.id_servico = s.id_servico
   LEFT JOIN Pagamento_Atendimentos pa ON pa.id_atendimento = a.id_atendimento
   LEFT JOIN Pagamentos pg ON pa.id_pagamento = pg.id_pagamento
   WHERE c.id_cliente = p_id_cliente
@@ -161,7 +161,7 @@ BEGIN
   SELECT
     status_pagamento,
     COUNT(*) AS quantidade,
-    SUM(valor_total) AS total
+    SUM(COALESCE(valor_total,0)) AS total
   FROM Pagamentos
   GROUP BY status_pagamento;
 END $$
