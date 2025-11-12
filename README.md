@@ -10,6 +10,7 @@ Autores:
 Projeto: Sistema de Gestão de Clínica Veterinária
 Banco: clinica_petshop
 Versão: Final — pronta pra execução
+Depedencias : mysql.connector
 
 ⚙️ SEQUÊNCIA DE EXECUÇÃO (ORDENADA)
 
