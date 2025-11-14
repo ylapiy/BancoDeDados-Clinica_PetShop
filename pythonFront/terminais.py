@@ -357,7 +357,8 @@ def visualizacoes_historicos():
     print("=" * 80)
     print("1. Historico Atendimentos")
     print("2. Historico Pagamentos")
-    print("2. Historico Estoque")
+    print("3. Historico Estoque")
+    print("0. Voltar ao Menu Principal")
     print("=" * 80)
 
     match pedirNumero():

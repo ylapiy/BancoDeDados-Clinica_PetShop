@@ -12,6 +12,8 @@ Banco: clinica_petshop
 Versão: Final — pronta pra execução
 Depedencias : mysql.connector
 
+Atenção, para ter acesso as todas view, procedures e triggers consulte os scripts, pois apenas exemplos foram colocados no PDF final, por questão de espaço, e tamanho
+
 ⚙️ SEQUÊNCIA DE EXECUÇÃO (ORDENADA)
 
 1️⃣ script_db_petshop.sql
